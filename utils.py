@@ -42,8 +42,12 @@ def init_params(net):
                 init.constant(m.bias, 0)
 
 
-_, term_width = os.popen('stty size', 'r').read().split()
-term_width = int(term_width)
+w = os.popen('stty size', 'r').read()
+if w == '':
+    term_width = 80
+else:
+    _, term_width = w.split()
+    term_width = int(term_width)
 
 TOTAL_BAR_LENGTH = 65.
 last_time = time.time()

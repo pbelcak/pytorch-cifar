@@ -1,0 +1,4 @@
+__pycache__/
+log/*
+lightning_logs/
+data/
