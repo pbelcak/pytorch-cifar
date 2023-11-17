@@ -2,6 +2,7 @@
 import torch
 import torch.nn as nn
 
+from .fixer import *
 
 cfg = {
     'VGG11': [64, 'M', 128, 'M', 256, 256, 'M', 512, 512, 'M', 512, 512, 'M'],
@@ -11,15 +12,16 @@ cfg = {
 }
 
 
-class VGG(nn.Module):
-    def __init__(self, vgg_name):
-        super(VGG, self).__init__()
+class VGG(FixedModule):
+    def __init__(self, vgg_name, flare: int = 1):
+        super(VGG, self).__init__(Fixer(512, flare))
         self.features = self._make_layers(cfg[vgg_name])
-        self.classifier = nn.Linear(512, 10)
+        self.classifier = nn.Linear(512 * flare, 10)
 
     def forward(self, x):
         out = self.features(x)
         out = out.view(out.size(0), -1)
+        out = self.fix(out)
         out = self.classifier(out)
         return out
 
