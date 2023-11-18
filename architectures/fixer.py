@@ -2,6 +2,63 @@ import torch
 from torch import nn
 import math
 
+class IFixable:
+	def get_hardness(self) -> float:
+		raise NotImplementedError()
+	
+	def set_hardness(self, hardness: float):
+		raise NotImplementedError()
+
+class FixerReLU(torch.nn.Module, IFixable):
+	def __init__(self, init_hardness: float = 0.0):
+		super().__init__()
+
+		self.hardness = nn.Parameter(torch.empty(1,), requires_grad=False)
+		self.hardness.data.fill_(init_hardness)
+
+	def get_hardness(self) -> float:
+		return self.hardness.data.item()
+
+	def set_hardness(self, hardness: float):
+		self.hardness.data.fill_(hardness)
+	
+	def forward(self, x):
+		activated = torch.nn.functional.relu(x)
+
+		out = (1-self.hardness) * activated + self.hardness * (x > 0.0).float()
+
+		return out
+
+class FixerNormedReLU(torch.nn.Module, IFixable):
+	def __init__(self, init_hardness: float = 0.0):
+		super().__init__()
+
+		self.hardness = nn.Parameter(torch.empty(1,), requires_grad=False)
+		self.hardness.data.fill_(init_hardness)
+		self.mean = nn.Parameter(torch.empty(1,), requires_grad=True)
+		self.mean.data.fill_(0.5)
+		self.variance = nn.Parameter(torch.empty(1,), requires_grad=True)
+		self.variance.data.fill_(0.5)
+
+	def get_hardness(self) -> float:
+		return self.hardness.data.item()
+
+	def set_hardness(self, hardness: float):
+		self.hardness.data.fill_(hardness)
+	
+	def forward(self, x):
+		activated = torch.nn.functional.relu(x)
+		activated_mean = activated.mean(dim=(-3,-2,-1)).unsqueeze(-1).unsqueeze(-1).unsqueeze(-1)
+		activated_variance = activated.var(dim=(-3,-2,-1)).unsqueeze(-1).unsqueeze(-1).unsqueeze(-1)
+
+		activated_normalized = (activated - activated_mean) / (activated_variance + 1e-12).sqrt()
+
+		# out = ((x <= 0.0).float() + (1-self.hardness) * (x > 0.0).float()) * activated_normalized # original
+		out = (1 - self.hardness * (x > 0.0).float()) * activated_normalized # should be the same as above but slightly faster
+		out = out * self.variance.sqrt() + self.mean
+
+		return out
+
 class FixedModule(torch.nn.Module):
 	def __init__(self, fixer: torch.nn.Module):
 		super().__init__()

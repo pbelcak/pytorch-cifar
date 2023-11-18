@@ -24,7 +24,8 @@
 
 				"--optimizer=sgd",
                 "--scheduler=cosine",
-                "--fixation_schedule=linear_60",
+                "--fixation_schedule=linear_100",
+                "--fixation_flare=1",
 				"--learning_rate=0.1",
 				"--epochs=200",
 				"--patience=200",

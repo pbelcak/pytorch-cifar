@@ -47,15 +47,16 @@ def train(args, model, optimizer, scheduler=None):
 	for epoch in range(args.epochs):
 		elapsed_steps = epoch * len(dataloader_training)
 
-		if epoch > 0.50*args.epochs:
-			for param_group in optimizer.param_groups:
-				param_group['weight_decay'] = 0.0
+		# if epoch > 0.50*args.epochs:
+		#	for param_group in optimizer.param_groups:
+		#		param_group['weight_decay'] = 0.0
+		#		param_group['momentum'] = 0.0
 
 		# training
 		training_result = loop(args, model, 'training', dataloader_training, optimizer, elapsed_steps, hardening_steps)
 	
 		# validation
-		validation_result = loop(args, model, 'validation', dataloader_validation)
+		validation_result = loop(args, model, 'validation', dataloader_testing)
 		wandb.log({
 			'epoch': epoch,
 			'training_loss': training_result['loss'],
