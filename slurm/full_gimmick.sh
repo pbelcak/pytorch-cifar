@@ -33,7 +33,7 @@ USER=pbelcak				# if you're changing this, remember to change the user of the lo
 PROJECT_PATH=/home/${USER}/${PROJECT_NAME}
 STORAGE_PATH=/itet-stor/${USER}/net_scratch/${PROJECT_NAME}
 
-ARCHITECTURE=${1:-vgg19}
+ARCHITECTURE=${1:-vgg19_q1_full}
 
 # Binary or script to execute
 PYTHONPATH=${PROJECT_PATH} python ${PROJECT_PATH}/main.py \

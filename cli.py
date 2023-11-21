@@ -79,6 +79,10 @@ def get_args():
 		default=None,
 		help='The fixation schedule to use (None, linear_100, linear_60; default: None)'
 	)
+	parser.add_argument('--fixation_cap',
+		type=float,
+		default=1.0,
+	)
 	parser.add_argument('--fixation_flare',
 		type=int,
 		default=1,

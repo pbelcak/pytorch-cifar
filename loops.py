@@ -10,8 +10,8 @@ import os
 import models
 
 def compute_loss_and_accuracy(output, target):
-	loss = nn.CrossEntropyLoss()(output, target)
-	accuracy = (output.argmax(dim=1) == target).float().mean()
+	loss = nn.CrossEntropyLoss(reduction='none')(output, target)
+	accuracy = (output.argmax(dim=1) == target).float()
 	return loss, accuracy
 
 def choose_evaluation_dataloader(args, training, validation, testing):
@@ -37,7 +37,9 @@ def train(args, model, optimizer, scheduler=None):
 	hardening_steps = 0
 	if args.fixation_schedule is not None:
 		if args.fixation_schedule == 'linear_100':
-			hardening_steps = total_steps
+			hardening_steps = total_steps*1.01
+		elif args.fixation_schedule == 'cubic_100':
+			hardening_steps = total_steps*1.01
 		elif args.fixation_schedule == 'linear_60':
 			hardening_steps = int(total_steps * 0.60)
 		else:
@@ -47,32 +49,37 @@ def train(args, model, optimizer, scheduler=None):
 	for epoch in range(args.epochs):
 		elapsed_steps = epoch * len(dataloader_training)
 
-		# if epoch > 0.50*args.epochs:
-		#	for param_group in optimizer.param_groups:
-		#		param_group['weight_decay'] = 0.0
-		#		param_group['momentum'] = 0.0
+		#if epoch > 0.60*args.epochs:
+			#for param_group in optimizer.param_groups:
+				#param_group['weight_decay'] = 0.0
+				#param_group['momentum'] = 0.0
 
 		# training
 		training_result = loop(args, model, 'training', dataloader_training, optimizer, elapsed_steps, hardening_steps)
 	
 		# validation
-		validation_result = loop(args, model, 'validation', dataloader_testing)
+		soft_validation_result = loop(args, model, 'soft_validation', dataloader_testing)
+
+		# validation
+		hard_validation_result = loop(args, model, 'hard_validation', dataloader_testing)
 		wandb.log({
 			'epoch': epoch,
 			'training_loss': training_result['loss'],
 			'training_accuracy': training_result['accuracy'],
-			'validation_loss': validation_result['loss'],
-			'validation_accuracy': validation_result['accuracy']
+			'soft_validation_loss': soft_validation_result['loss'],
+			'soft_validation_accuracy': soft_validation_result['accuracy'],
+			'hard_validation_loss': hard_validation_result['loss'],
+			'hard_validation_accuracy': hard_validation_result['accuracy']
 		})
 
 		# early stopping and checkpointing
-		if best_validation_loss == float('inf') or validation_result['loss'] < best_validation_loss - (best_validation_loss * args.min_delta):
-			best_validation_loss = validation_result['loss']
+		if best_validation_loss == float('inf') or hard_validation_result['loss'] < best_validation_loss - (best_validation_loss * args.min_delta):
+			best_validation_loss = hard_validation_result['loss']
 			best_validation_loss_epoch = epoch
 			best_model_name = save(args, model, optimizer, 'best')
 			records.insert_model(
 				args, best_model_name, epoch+1,
-				training_result['loss'], training_result['accuracy'], validation_result['loss'], validation_result['accuracy']
+				training_result['loss'], training_result['accuracy'], hard_validation_result['loss'], hard_validation_result['accuracy']
 			)
 		elif epoch - best_validation_loss_epoch >= args.patience:
 			break
@@ -85,15 +92,15 @@ def train(args, model, optimizer, scheduler=None):
 	last_model_name = save(args, model, optimizer, 'last')
 	records.insert_model(
 		args, last_model_name, epoch+1,
-		training_result['loss'], training_result['accuracy'], validation_result['loss'], validation_result['accuracy']
+		training_result['loss'], training_result['accuracy'], hard_validation_result['loss'], hard_validation_result['accuracy']
 	)
 
 	result = {
 		'epochs': epoch,
 		'training_loss': training_result['loss'],
 		'training_accuracy': training_result['accuracy'],
-		'validation_loss': validation_result['loss'],
-		'validation_accuracy': validation_result['accuracy'],
+		'validation_loss': hard_validation_result['loss'],
+		'validation_accuracy': hard_validation_result['accuracy'],
 		'best_validation_loss': best_validation_loss,
 		'best_validation_loss_epoch': best_validation_loss_epoch
 	}
@@ -125,9 +132,9 @@ def evaluate(args, model_name, model, dataloader=None):
 	}
 
 def loop(args, model, mode, dataloader, optimizer=None, epoch_elapsed_steps=0, hardening_steps=0):
-	if mode == 'training':
+	if mode == 'training' or mode == 'soft_validation':
 		model.train()
-	elif mode == 'validation' or mode == 'evaluation':
+	elif mode == 'validation' or mode == 'hard_validation' or mode == 'evaluation':
 		model.eval()
 
 	loss_accumulator = 0.0
@@ -139,36 +146,49 @@ def loop(args, model, mode, dataloader, optimizer=None, epoch_elapsed_steps=0, h
 			optimizer.zero_grad()
 
 		if optimizer is not None and hardening_steps > 0:
-			hardness = min(1.0, elapsed_steps / (hardening_steps + 1))
+			if args.fixation_schedule.startswith('linear'):
+				hardness = min(1.0, elapsed_steps / (hardening_steps + 1))
+			elif args.fixation_schedule.startswith('cubic'):
+				hardness = (1 - (1 - elapsed_steps / (hardening_steps + 1)) ** 3)
+			else:
+				hardness = 0.0
+			hardness = min(args.fixation_cap, hardness)
 			model.set_hardness(hardness)
 
 		data, target = data.to(device.device), target.to(device.device)
 
 		output = model(data)
+		batch_size = output.shape[0]
 		loss, accuracy = compute_loss_and_accuracy(output, target)
 
+		loss_accumulator += loss.sum().item()
+		accuracy_accumulator += accuracy.sum().item()
+		accumulator_count += batch_size
+
+		mean_loss = loss.mean()
+		mean_accuracy = accuracy.mean()
+
+
 		if optimizer != None:
-			loss.backward()
+			mean_loss.backward()
 			torch.nn.utils.clip_grad_norm_(model.parameters(), args.clip)
 			optimizer.step()
 
 		if mode == 'training':
 			wandb.log({
-				'batch_training_loss': loss.item(),
-				'batch_training_accuracy': accuracy.item(),
+				'batch_training_loss': mean_loss.item(),
+				'batch_training_accuracy': mean_accuracy.item(),
 				'hardness': model.get_hardness()
 			})
 
-		loss_accumulator += loss.item()
-		accuracy_accumulator += accuracy.item()
-		accumulator_count += output.shape[0]
+		
 
-	mean_loss = loss_accumulator / batch_idx
-	mean_accuracy = accuracy_accumulator / batch_idx
+	total_mean_loss = loss_accumulator / accumulator_count
+	total_mean_accuracy = accuracy_accumulator / accumulator_count
 
 	return {
-		'loss': mean_loss,
-		'accuracy': mean_accuracy
+		'loss': total_mean_loss,
+		'accuracy': total_mean_accuracy
 	}
 
 def save(args, model, optimizer, label):

@@ -33,19 +33,19 @@ USER=pbelcak				# if you're changing this, remember to change the user of the lo
 PROJECT_PATH=/home/${USER}/${PROJECT_NAME}
 STORAGE_PATH=/itet-stor/${USER}/net_scratch/${PROJECT_NAME}
 
-ARCHITECTURE=${1:-vgg19}
+ARCHITECTURE=${1:-ff1024}
 
 # Binary or script to execute
 PYTHONPATH=${PROJECT_PATH} python ${PROJECT_PATH}/main.py \
 	--job_id=${SLURM_JOB_ID} \
-	--job_suite=proto \
+	--job_suite=${ARCHITECTURE} \
 	--seed=0 \
 	--data_directory=${STORAGE_PATH}/data/ \
 	--checkpointing_directory=${STORAGE_PATH}/checkpoints/ \
 	--logging_directory=${STORAGE_PATH}/logs/ \
 	--results_directory=${STORAGE_PATH}/results/ \
 	--action=train \
-	--dataset=cifar10 \
+	--dataset=mnist \
 	--architecture=${ARCHITECTURE} \
 	--optimizer=sgd \
 	--scheduler=cosine \
@@ -53,8 +53,10 @@ PYTHONPATH=${PROJECT_PATH} python ${PROJECT_PATH}/main.py \
 	--epochs=200 \
 	--patience=200 \
 	--min_delta=0.01 \
-	--batch_size=1024 \
+	--batch_size=512 \
 	--fixation_schedule=linear_100 \
+	--fixation_cap=1.0 \
+	--clip=0.50 \
 	--evaluate_after_training ${@:2}
 
 # Send more noteworthy information to the output log
