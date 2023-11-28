@@ -33,12 +33,12 @@ USER=pbelcak				# if you're changing this, remember to change the user of the lo
 PROJECT_PATH=/home/${USER}/${PROJECT_NAME}
 STORAGE_PATH=/itet-stor/${USER}/net_scratch/${PROJECT_NAME}
 
-ARCHITECTURE=${1:-vgg19_q1_full}
+ARCHITECTURE=${1:-vgg19_full}
 
 # Binary or script to execute
 PYTHONPATH=${PROJECT_PATH} python ${PROJECT_PATH}/main.py \
 	--job_id=${SLURM_JOB_ID} \
-	--job_suite=proto \
+	--job_suite=${ARCHITECTURE} \
 	--seed=0 \
 	--data_directory=${STORAGE_PATH}/data/ \
 	--checkpointing_directory=${STORAGE_PATH}/checkpoints/ \
@@ -50,10 +50,11 @@ PYTHONPATH=${PROJECT_PATH} python ${PROJECT_PATH}/main.py \
 	--optimizer=sgd \
 	--scheduler=cosine \
 	--learning_rate=0.1 \
-	--epochs=200 \
-	--patience=200 \
+	--epochs=300 \
+	--patience=300 \
 	--min_delta=0.01 \
 	--batch_size=1024 \
+	--clip=1.0 \
 	--fixation_schedule=linear_100 \
 	--evaluate_after_training ${@:2}
 

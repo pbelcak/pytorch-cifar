@@ -10,7 +10,9 @@ cfg = {
 	'vgg16': [64, 64, 'M', 128, 128, 'M', 256, 256, 256, 'M', 512, 512, 512, 'M', 512, 512, 512, 'M'],
 	'vgg19': [64, 64, 'M', 128, 128, 'M', 256, 256, 256, 256, 'M', 512, 512, 512, 512, 'M', 512, 512, 512, 512, 'M'],
 	'vgg19_q1_twopoint': [64, 64, 'M', 'Q1', 128, 128, 'M', 256, 256, 256, 256, 'M', 512, 512, 512, 512, 'M', 512, 512, 512, 512, 'M'],
-	'vgg19_q1_full': [64, 64, 'M', 'Q1', 128, 128, 'M', 'Q1', 256, 256, 256, 256, 'M', 'Q1', 512, 512, 512, 512, 'M', 'Q1', 512, 512, 512, 512, 'M'],
+	'vgg19_q1_full': [64, 64, 'M', 128, 128, 'M', 256, 256, 256, 256, 'M', 512, 512, 512, 512, 'M', 512, 512, 512, 512, 'M'],
+	'vgg19_resilu_full': [64, 64, 'M', 128, 128, 'M', 256, 256, 256, 256, 'M', 512, 512, 512, 512, 'M', 512, 512, 512, 512, 'M'],
+	'vgg19_resilu_block': [64, 64, 'M', 128, 128, 'M', 256, 256, 256, 256, 'M', 512, 512, 512, 512, 'M', 512, 512, 512, 512, 'M'],
 }
 
 
@@ -18,6 +20,7 @@ class VGG(nn.Module, IFixable):
 	def __init__(self, vgg_name, flare: int = 1):
 		super(VGG, self).__init__()
 		self.features = self._make_layers(cfg[vgg_name])
+		self.activation_class = ReSiLU if 'resilu' in vgg_name else ClampReLU
 		self.final_fixer = Fixer(512, flare)
 		self.classifier = nn.Linear(512 * flare, 10)
 
@@ -33,7 +36,7 @@ class VGG(nn.Module, IFixable):
 	def forward(self, x):
 		out = self.features(x)
 		out = out.view(out.size(0), -1)
-		out = self.final_fixer(out)
+		# out = self.final_fixer(out)
 		out = self.classifier(out)
 		return out
 
@@ -41,6 +44,7 @@ class VGG(nn.Module, IFixable):
 		layers = []
 		in_channels = 3
 		block = 0
+		last_block_seen_here = 0
 		for x in cfg:
 			if x == 'M':
 				layers += [nn.MaxPool2d(kernel_size=2, stride=2)]
@@ -60,13 +64,21 @@ class VGG(nn.Module, IFixable):
 					32 // (2 ** block)
 				)
 				
+				activation_class = nn.ReLU
+				if last_block_seen_here < block:
+					activation_class = ReSiLU
+					last_block_seen_here = block
+				
 				layers += [
 					nn.Conv2d(in_channels, x, kernel_size=3, padding=1),
+					activation_class(),
 					nn.BatchNorm2d(x, track_running_stats=False),
-					ClampReLU(),
 				]
 				in_channels = x
-		layers += [nn.AvgPool2d(kernel_size=1, stride=1)]
+		layers += [
+			nn.AvgPool2d(kernel_size=1, stride=1),
+			activation_class()
+		]
 		return nn.Sequential(*layers)
 
 

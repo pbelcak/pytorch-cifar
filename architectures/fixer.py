@@ -120,7 +120,7 @@ class LearnableQuantization(torch.nn.Module, IFixable):
 
 		return out
 	
-class ReSigmoidLU(torch.nn.Module, IFixable):
+class ReSiLU(torch.nn.Module, IFixable):
 	def __init__(self):
 		super().__init__()
 		self.hardness = nn.Parameter(torch.zeros(1), requires_grad=False)

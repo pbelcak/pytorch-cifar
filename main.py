@@ -5,6 +5,7 @@ import models
 import optimizers
 import loops
 import records
+import image
 
 import torch
 import torch.nn as nn
@@ -62,6 +63,8 @@ def main():
 		result = loops.train(args, model, optimizer, scheduler)
 	elif args.action == 'evaluate':
 		result = loops.evaluate(args, args.checkpoint, model)
+	elif args.action == 'build_image':
+		results = image.build(args, model)
 	else:
 		raise ValueError('Unknown action: %s' % args.action)
 

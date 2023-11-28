@@ -181,8 +181,6 @@ def loop(args, model, mode, dataloader, optimizer=None, epoch_elapsed_steps=0, h
 				'hardness': model.get_hardness()
 			})
 
-		
-
 	total_mean_loss = loss_accumulator / accumulator_count
 	total_mean_accuracy = accuracy_accumulator / accumulator_count
 
