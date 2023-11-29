@@ -21,7 +21,7 @@ def main():
 	# initialize a wandb run
 	args = cli.get_args()
 	wandb.init(
-		project=PROJECT_NAME,
+		project='pytorch-popcnt' if args.action == 'fit_image' else PROJECT_NAME,
 		name="{}-{}".format(args.job_id, args.job_suite),
 		tags=[args.action, args.dataset, args.architecture],
 		config=args,
@@ -50,9 +50,9 @@ def main():
 	# if the checkpoint has been specified, load it
 	if args.checkpoint != None:
 		full_checkpoint_path_model = os.path.join(args.checkpointing_directory, args.checkpoint + '-model.pt')
-		full_checkpoint_path_optimizer = os.path.join(args.checkpointing_directory, args.checkpoint + '-optimizer.pt')
+		# full_checkpoint_path_optimizer = os.path.join(args.checkpointing_directory, args.checkpoint + '-optimizer.pt')
 		model.load_state_dict(torch.load(full_checkpoint_path_model))
-		optimizer.load_state_dict(torch.load(full_checkpoint_path_optimizer, map_location=device.device))
+		# optimizer.load_state_dict(torch.load(full_checkpoint_path_optimizer, map_location=device.device))
 
 	# register the job
 	records.initialize(args, project_name=PROJECT_NAME)
@@ -64,7 +64,10 @@ def main():
 	elif args.action == 'evaluate':
 		result = loops.evaluate(args, args.checkpoint, model)
 	elif args.action == 'build_image':
-		results = image.build(args, model)
+		result = image.build_all(args, model)
+	elif args.action == 'fit_image':
+		import popcnt
+		result = popcnt.train(args, model, optimizer, scheduler)
 	else:
 		raise ValueError('Unknown action: %s' % args.action)
 

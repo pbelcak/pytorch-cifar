@@ -11,7 +11,7 @@ def make_checkpoint_path(args, model_name: str, component: str = 'model'):
 
 def get_model(args, data_meta):
 	if args.architecture.startswith('vgg'):
-		return VGG(args.architecture, args.fixation_flare)
+		return VGG(args.architecture)
 	elif args.architecture == 'resnet18':
 		return ResNet18()
 	elif args.architecture == 'preactresnet18':
@@ -41,6 +41,28 @@ def get_model(args, data_meta):
 	elif args.architecture == 'simpledla':
 		return SimpleDLA()
 	elif args.architecture.startswith('ff'):
-		return FF(data_meta['input_width'], data_meta['output_width'], args.architecture, args.fixation_flare)
+		return FF(data_meta['input_width'], data_meta['output_width'], args.architecture)
+	elif args.architecture == 'popcnt':
+		return Popcnt(data_meta['input_width'], data_meta['output_width'])
+	elif args.architecture == 'difflogic':
+		from difflogic import LogicLayer, GroupSum
+		return torch.nn.Sequential(
+			torch.nn.Flatten(),
+			LogicLayer(64*5*5, 16*64*64, device='cuda', implementation='cuda', grad_factor=2),
+			LogicLayer(16*64*64, 16*64*64, device='cuda', implementation='cuda', grad_factor=2),
+			LogicLayer(16*64*64, 16*64*64, device='cuda', implementation='cuda', grad_factor=2),
+			LogicLayer(16*64*64, 16*64*64, device='cuda', implementation='cuda', grad_factor=2),
+			LogicLayer(16*64*64, 16*64*64, device='cuda', implementation='cuda', grad_factor=2),
+			GroupSum(k=128, tau=32)
+		)
+	elif args.architecture == 'diffsanity':
+		return torch.nn.Sequential(
+			torch.nn.Flatten(),
+			nn.Linear(128*9*9, 8200),
+			nn.ReLU(),
+			nn.Linear(8200, 8200),
+			nn.ReLU(),
+			nn.Linear(8200, 256)
+		)
 	else:
 		raise ValueError('Unknown architecture: %s' % args.architecture)

@@ -17,12 +17,13 @@ cfg = {
 
 
 class VGG(nn.Module, IFixable):
-	def __init__(self, vgg_name, flare: int = 1):
+	def __init__(self, vgg_name):
 		super(VGG, self).__init__()
 		self.features = self._make_layers(cfg[vgg_name])
 		self.activation_class = ReSiLU if 'resilu' in vgg_name else ClampReLU
-		self.final_fixer = Fixer(512, flare)
-		self.classifier = nn.Linear(512 * flare, 10)
+		self.final_fixer = Fixer(512, 1)
+		self.classifier = nn.Linear(512, 10)
+		self.hard_tensors = []
 
 	def get_hardness(self) -> float:
 		return self.final_fixer.get_hardness()
@@ -33,10 +34,25 @@ class VGG(nn.Module, IFixable):
 				feature.set_hardness(hardness)
 		self.final_fixer.set_hardness(hardness)
 
+	def record_hard_tensor(self, x):
+		self.hard_tensors += [ x.detach().cpu() ]
+
+	def get_hard_tensors(self):
+		return self.hard_tensors
+	
+	def clean_hard_tensors(self):
+		self.hard_tensors = []
+
 	def forward(self, x):
-		out = self.features(x)
+		for feature in self.features:
+			x = feature(x)
+			if isinstance(feature, ReSiLU):
+				self.record_hard_tensor(x)
+				if self.training:
+					x = torch.where(torch.rand_like(x) < 0.1, (1-x).detach(), x)
+			
+		out = x
 		out = out.view(out.size(0), -1)
-		# out = self.final_fixer(out)
 		out = self.classifier(out)
 		return out
 
@@ -44,30 +60,20 @@ class VGG(nn.Module, IFixable):
 		layers = []
 		in_channels = 3
 		block = 0
-		last_block_seen_here = 0
-		for x in cfg:
+		for x, nextx in zip(cfg, cfg[1:]+[None]):
 			if x == 'M':
-				layers += [nn.MaxPool2d(kernel_size=2, stride=2)]
+				layers += [nn.AvgPool2d(kernel_size=2, stride=2)]
 				block += 1
 			elif x == 'Q1':
 				layers += [
 					LearnableQuantization(1),
 					nn.BatchNorm2d(min(64 * 2 ** (block-1), 512), track_running_stats=False)
 				]
-			else:
-				# past_first_block = block > 0
-				# we need the shape for normalization
-				# we start at (b_s, 32, 32); then halve for every increment of block
-				shape = (
-					min(64 * 2 ** block, 512),
-					32 // (2 ** block),
-					32 // (2 ** block)
-				)
-				
-				activation_class = nn.ReLU
-				if last_block_seen_here < block:
+			else:		
+				if nextx == 'M':
 					activation_class = ReSiLU
-					last_block_seen_here = block
+				else:
+					activation_class = nn.ReLU
 				
 				layers += [
 					nn.Conv2d(in_channels, x, kernel_size=3, padding=1),
@@ -76,10 +82,10 @@ class VGG(nn.Module, IFixable):
 				]
 				in_channels = x
 		layers += [
-			nn.AvgPool2d(kernel_size=1, stride=1),
-			activation_class()
+			# nn.AvgPool2d(kernel_size=1, stride=1),
+			# activation_class()
 		]
-		return nn.Sequential(*layers)
+		return nn.ModuleList(layers)
 
 
 def test():

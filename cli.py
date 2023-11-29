@@ -54,6 +54,11 @@ def get_args():
 		default='./cache/results',
 		help='Path to the directory where the results are to be stored.'
 	)
+	parser.add_argument('--image_directory',
+		type=str,
+		default='./cache/images',
+		help='Path to the directory where the model images of the input datasets are to be stored.'
+	)
 	parser.add_argument('--architecture',
 		type=str,
 		default='ff',
@@ -63,6 +68,11 @@ def get_args():
 		type=str,
 		default=None,
 		help='The name (conforming to make_model_name() format) of the checkpoint to load (either for continued training or testing). Defaults to None -- nothing will be loaded for training or testing.'
+	)
+	parser.add_argument('--image',
+		type=str,
+		default=None,
+		help='The name of the representations to load. Defaults to None -- nothing will be loaded.'
 	)
 	parser.add_argument('--optimizer',
 		type=str,
@@ -133,6 +143,7 @@ def get_args():
 	create_directory_if_does_not_exist(args.checkpointing_directory)
 	create_directory_if_does_not_exist(args.logging_directory)
 	create_directory_if_does_not_exist(args.results_directory)
+	create_directory_if_does_not_exist(args.image_directory)
 
 	return args
 

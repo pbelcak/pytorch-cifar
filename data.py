@@ -59,16 +59,16 @@ def get_dataloaders_cifar10(args):
 	dataset_training = datasets.CIFAR10(
 		root=args.data_directory, train=True, download=True, transform=transform_train)
 	training_size = int(0.95 * len(dataset_training))
-	split_training, split_validation = torch.utils.data.random_split(dataset_training, [training_size, len(dataset_training) - training_size])
+	# split_training, split_validation = torch.utils.data.random_split(dataset_training, [training_size, len(dataset_training) - training_size])
 	
-	dataloader_training = torch.utils.data.DataLoader(split_training, batch_size=args.batch_size, shuffle=True)
-	dataloader_validation = torch.utils.data.DataLoader(split_validation, batch_size=args.batch_size, shuffle=True)
+	dataloader_training = torch.utils.data.DataLoader(dataset_training, batch_size=args.batch_size, shuffle=True)
+	# dataloader_validation = torch.utils.data.DataLoader(split_validation, batch_size=args.batch_size, shuffle=True)
 
 	dataset_testing = datasets.CIFAR10(args.data_directory, download=True, train=False, transform=transform_test)
 	dataloader_testing = torch.utils.data.DataLoader(dataset_testing, batch_size=args.batch_size, shuffle=False)
 
 	# classes = ('plane', 'car', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
 
-	return dataloader_training, dataloader_validation, dataloader_testing
+	return dataloader_training, dataloader_testing, dataloader_testing
 
 	

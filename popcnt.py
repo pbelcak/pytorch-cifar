@@ -1,17 +1,18 @@
-import data
 import device
 import records
 
 import torch
 import torch.nn as nn
 import wandb
-import os
 
 import models
+import image
+
+from torch.utils.data import TensorDataset
 
 def compute_loss_and_accuracy(output, target):
-	loss = nn.CrossEntropyLoss(reduction='none')(output, target)
-	accuracy = (output.argmax(dim=1) == target).float()
+	loss = torch.nn.functional.binary_cross_entropy_with_logits(output, target, reduction='none')
+	accuracy = ((output > 0) == target.bool()).float()
 	return loss, accuracy
 
 def choose_evaluation_dataloader(args, training, validation, testing):
@@ -23,11 +24,29 @@ def choose_evaluation_dataloader(args, training, validation, testing):
 		return testing
 	else:
 		raise ValueError('Unknown split: %s' % args.split)
+	
+def get_dataloaders(args):
+	# get the data
+	hard_representations_training = image.load(args, label='training')
+	hard_representations_validation = image.load(args, label='validation')
+	hard_representations_testing = image.load(args, label='testing')
+	
+	# use TensorDataset to create a dataset from hard_representations[0] and hard_representations[1]
+	dataset_training = TensorDataset(hard_representations_training[0], hard_representations_training[1])
+	dataset_validation = TensorDataset(hard_representations_validation[0], hard_representations_validation[1])
+	dataset_testing = TensorDataset(hard_representations_testing[0], hard_representations_testing[1])
+	
+	# use DataLoader to create a dataloader from the dataset
+	dataloader_training = torch.utils.data.DataLoader(dataset_training, batch_size=args.batch_size, shuffle=True)
+	dataloader_validation = torch.utils.data.DataLoader(dataset_validation, batch_size=args.batch_size, shuffle=False)
+	dataloader_testing = torch.utils.data.DataLoader(dataset_testing, batch_size=args.batch_size, shuffle=False)
+
+	return dataloader_training, dataloader_validation, dataloader_testing
 
 def train(args, model, optimizer, scheduler=None):
-    # get the data
-	dataloader_training, dataloader_validation, dataloader_testing = data.get_dataloaders(args)
+	dataloader_training, dataloader_validation, dataloader_testing = get_dataloaders(args)
 
+	# best_tracking
 	best_validation_loss = float('inf')
 	best_validation_loss_epoch = 0
 
@@ -37,9 +56,9 @@ def train(args, model, optimizer, scheduler=None):
 	hardening_steps = 0
 	if args.fixation_schedule is not None:
 		if args.fixation_schedule == 'linear_100':
-			hardening_steps = total_steps*1.005
+			hardening_steps = total_steps*1.01
 		elif args.fixation_schedule == 'cubic_100':
-			hardening_steps = total_steps*1.005
+			hardening_steps = total_steps*1.01
 		elif args.fixation_schedule == 'linear_60':
 			hardening_steps = int(total_steps * 0.60)
 		else:
@@ -49,25 +68,20 @@ def train(args, model, optimizer, scheduler=None):
 	for epoch in range(args.epochs):
 		elapsed_steps = epoch * len(dataloader_training)
 
-		#if epoch > 0.60*args.epochs:
-			#for param_group in optimizer.param_groups:
-				#param_group['weight_decay'] = 0.0
-				#param_group['momentum'] = 0.0
-
 		# training
 		training_result = loop(args, model, 'training', dataloader_training, optimizer, elapsed_steps, hardening_steps)
 	
-		# validation
-		soft_validation_result = loop(args, model, 'soft_validation', dataloader_testing)
+		# soft validation
+		# soft_validation_result = loop(args, model, 'soft_validation', dataloader_testing)
 
-		# validation
+		# hard validation
 		hard_validation_result = loop(args, model, 'hard_validation', dataloader_testing)
 		wandb.log({
 			'epoch': epoch,
 			'training_loss': training_result['loss'],
 			'training_accuracy': training_result['accuracy'],
-			'soft_validation_loss': soft_validation_result['loss'],
-			'soft_validation_accuracy': soft_validation_result['accuracy'],
+			#'soft_validation_loss': soft_validation_result['loss'],
+			#'soft_validation_accuracy': soft_validation_result['accuracy'],
 			'hard_validation_loss': hard_validation_result['loss'],
 			'hard_validation_accuracy': hard_validation_result['accuracy']
 		})
@@ -83,7 +97,6 @@ def train(args, model, optimizer, scheduler=None):
 			)
 		elif epoch - best_validation_loss_epoch >= args.patience:
 			break
-
 
 		if scheduler is not None:
 			scheduler.step()
@@ -116,7 +129,7 @@ def train(args, model, optimizer, scheduler=None):
 
 def evaluate(args, model_name, model, dataloader=None):
 	if dataloader is None:
-		training, validation, testing = data.get_dataloaders(args)
+		training, validation, testing = get_dataloaders(args)
 		dataloader = choose_evaluation_dataloader(args, training, validation, testing)
 
 	# run the evaluation loop
@@ -153,17 +166,23 @@ def loop(args, model, mode, dataloader, optimizer=None, epoch_elapsed_steps=0, h
 			else:
 				hardness = 0.0
 			hardness = min(args.fixation_cap, hardness)
-			model.set_hardness(hardness)
+			if isinstance(model, models.IFixable):
+				model.set_hardness(hardness)
 
 		data, target = data.to(device.device), target.to(device.device)
 
+		data = torch.nn.Unfold(kernel_size=(5,5), stride=(2,2), padding=2)(data)
+		data = data.transpose(1, 2).round().flatten(0, 1)
+		target = target.round().flatten(-2).transpose(1, 2).flatten(0, 1)
+
 		output = model(data)
+		output = output - 8
 		batch_size = output.shape[0]
 		loss, accuracy = compute_loss_and_accuracy(output, target)
 
 		loss_accumulator += loss.sum().item()
 		accuracy_accumulator += accuracy.sum().item()
-		accumulator_count += batch_size
+		accumulator_count += output.numel()
 
 		mean_loss = loss.mean()
 		mean_accuracy = accuracy.mean()
@@ -178,7 +197,7 @@ def loop(args, model, mode, dataloader, optimizer=None, epoch_elapsed_steps=0, h
 			wandb.log({
 				'batch_training_loss': mean_loss.item(),
 				'batch_training_accuracy': mean_accuracy.item(),
-				'hardness': model.get_hardness()
+				'hardness': model.get_hardness() if isinstance(model, models.IFixable) else 0.0,
 			})
 
 	total_mean_loss = loss_accumulator / accumulator_count

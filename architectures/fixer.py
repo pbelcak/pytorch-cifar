@@ -8,6 +8,9 @@ class IFixable:
 	
 	def set_hardness(self, hardness: float):
 		raise NotImplementedError()
+	
+	def record_hard_tensor(self, tensor: torch.Tensor):
+		raise NotImplementedError()
 
 class FixerReLU(torch.nn.Module, IFixable):
 	def __init__(self, init_hardness: float = 0.0):
