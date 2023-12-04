@@ -68,6 +68,9 @@ def main():
 	elif args.action == 'fit_image':
 		import popcnt
 		result = popcnt.train(args, model, optimizer, scheduler)
+	elif args.action == 'entcnt':
+		import entcnt
+		result = entcnt.train(args, model)
 	else:
 		raise ValueError('Unknown action: %s' % args.action)
 

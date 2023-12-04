@@ -2,6 +2,7 @@ import torch
 import os
 
 from architectures import *
+import project
 
 def make_model_name(args, label):
 	return f"{args.job_id}-{args.job_suite}-{label}"
@@ -44,7 +45,7 @@ def get_model(args, data_meta):
 		return FF(data_meta['input_width'], data_meta['output_width'], args.architecture)
 	elif args.architecture == 'popcnt':
 		return Popcnt(data_meta['input_width'], data_meta['output_width'])
-	elif args.architecture == 'difflogic':
+	elif args.architecture == 'difflogic-5':
 		from difflogic import LogicLayer, GroupSum
 		return torch.nn.Sequential(
 			torch.nn.Flatten(),
@@ -55,14 +56,40 @@ def get_model(args, data_meta):
 			LogicLayer(16*64*64, 16*64*64, device='cuda', implementation='cuda', grad_factor=2),
 			GroupSum(k=128, tau=32)
 		)
+	elif args.architecture == 'difflogic-7':
+		from difflogic import LogicLayer, GroupSum
+		return torch.nn.Sequential(
+			torch.nn.Flatten(),
+			LogicLayer(64*5*5, 16*64*64, device='cuda', implementation='cuda', grad_factor=2),
+			LogicLayer(16*64*64, 16*64*64, device='cuda', implementation='cuda', grad_factor=2),
+			LogicLayer(16*64*64, 16*64*64, device='cuda', implementation='cuda', grad_factor=2),
+			LogicLayer(16*64*64, 16*64*64, device='cuda', implementation='cuda', grad_factor=2),
+			LogicLayer(16*64*64, 16*64*64, device='cuda', implementation='cuda', grad_factor=2),
+			LogicLayer(16*64*64, 16*64*64, device='cuda', implementation='cuda', grad_factor=2),
+			LogicLayer(16*64*64, 16*64*64, device='cuda', implementation='cuda', grad_factor=2),
+			GroupSum(k=128, tau=32)
+		)
+	elif args.architecture == 'difflogic-3':
+		from difflogic import LogicLayer, GroupSum
+		return torch.nn.Sequential(
+			torch.nn.Flatten(),
+			LogicLayer(64*5*5, 64*16*16, device='cuda', implementation='cuda', grad_factor=1),
+			LogicLayer(64*16*16, 64*16*16, device='cuda', implementation='cuda', grad_factor=1),
+			LogicLayer(64*16*16, 64*16*16, device='cuda', implementation='cuda', grad_factor=1),
+			GroupSum(k=128, tau=8)
+		)
 	elif args.architecture == 'diffsanity':
 		return torch.nn.Sequential(
 			torch.nn.Flatten(),
-			nn.Linear(128*9*9, 8200),
+			nn.Linear(64*5*5, 3200),
 			nn.ReLU(),
-			nn.Linear(8200, 8200),
+			nn.LayerNorm(3200),
+			nn.Linear(3200, 1600),
 			nn.ReLU(),
-			nn.Linear(8200, 256)
+			nn.LayerNorm(1600),
+			nn.Linear(1600, 128)
 		)
+	elif args.architecture == 'tree':
+		return project.Tree(64 * 5 * 5, 10)
 	else:
 		raise ValueError('Unknown architecture: %s' % args.architecture)

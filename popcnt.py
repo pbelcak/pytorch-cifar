@@ -176,7 +176,7 @@ def loop(args, model, mode, dataloader, optimizer=None, epoch_elapsed_steps=0, h
 		target = target.round().flatten(-2).transpose(1, 2).flatten(0, 1)
 
 		output = model(data)
-		output = output - 8
+		output = output
 		batch_size = output.shape[0]
 		loss, accuracy = compute_loss_and_accuracy(output, target)
 
@@ -186,7 +186,6 @@ def loop(args, model, mode, dataloader, optimizer=None, epoch_elapsed_steps=0, h
 
 		mean_loss = loss.mean()
 		mean_accuracy = accuracy.mean()
-
 
 		if optimizer != None:
 			mean_loss.backward()
