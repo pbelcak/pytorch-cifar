@@ -91,5 +91,7 @@ def get_model(args, data_meta):
 		)
 	elif args.architecture == 'tree':
 		return project.Tree(64 * 5 * 5, 10)
+	elif args.architecture == 'densesumunit':
+		return DenseSumUnit(64 * 10 * 10)
 	else:
 		raise ValueError('Unknown architecture: %s' % args.architecture)

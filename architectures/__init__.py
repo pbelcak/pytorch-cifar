@@ -18,3 +18,4 @@ from .dla_simple import *
 from .dla import *
 from .ff import *
 from .popcnt import *
+from .densesumunit import *

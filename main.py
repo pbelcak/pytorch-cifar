@@ -71,6 +71,9 @@ def main():
 	elif args.action == 'entcnt':
 		import entcnt
 		result = entcnt.train(args, model)
+	elif args.action == 'pred':
+		import pred
+		result = pred.train(args, model, optimizer, scheduler)
 	else:
 		raise ValueError('Unknown action: %s' % args.action)
 
