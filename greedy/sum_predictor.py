@@ -10,7 +10,7 @@ class DenseSumPredictor(Predictor):
 		self.input_width = input_width
 
 		self.choices = nn.Parameter(torch.empty(input_width, 4).uniform_(-1, +1), requires_grad=True)
-		self.bias = nn.Parameter(torch.empty(1).uniform_(0, self.input_width), requires_grad=True)
+		self.bias = nn.Parameter(torch.empty(1).fill_(self.input_width / 2), requires_grad=True)
 		self.hardness = nn.Parameter(torch.zeros(1), requires_grad=False)
 
 	def get_hardness(self) -> float:

@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --mem=50GB
+#SBATCH --mem=256GB
 #SBATCH --output=/home/pbelcak/pytorch-cifar/log/%j.out
 #SBATCH --error=/home/pbelcak/pytorch-cifar/log/%j.err
 #SBATCH --mail-type=NONE                            # mail configuration: NONE, BEGIN, END, FAIL, REQUEUE, ALL
@@ -45,16 +45,17 @@ PYTHONPATH=${PROJECT_PATH} python ${PROJECT_PATH}/main.py \
 	--image_directory=${STORAGE_PATH}/images/ \
 	--image=756609-vgg19_resilu_block-cifar10-vgg19_resilu_block \
 	--action=pred \
+	--max_depth=2 \
 	--dataset=cifar10 \
 	--architecture=densesumunit \
 	--optimizer=adam \
 	--learning_rate=0.01 \
-	--epochs=35 \
-	--patience=35 \
+	--epochs=20 \
+	--patience=20 \
 	--min_delta=0.01 \
-	--batch_size=32 \
+	--batch_size=128 \
 	--clip=1.0 \
-	--fixation_schedule=linear_100 \
+	--fixation_schedule=cubic_100 \
 	--evaluate_after_training ${@:1}
 
 

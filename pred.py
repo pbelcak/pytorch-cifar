@@ -7,6 +7,7 @@ import wandb
 
 import models
 import image
+import optimizers
 
 from torch.utils.data import TensorDataset
 
@@ -14,16 +15,6 @@ def compute_loss_and_accuracy(output, target):
 	loss = torch.nn.functional.binary_cross_entropy_with_logits(output, target, reduction='none')
 	accuracy = ((output > 0) == target.bool()).float()
 	return loss, accuracy
-
-def choose_evaluation_dataloader(args, training, validation, testing):
-	if args.split == 'training':
-		return training
-	elif args.split == 'validation':
-		return validation
-	elif args.split == 'testing':
-		return testing
-	else:
-		raise ValueError('Unknown split: %s' % args.split)
 	
 def get_dataloaders(args):
 	# get the data
@@ -43,16 +34,64 @@ def get_dataloaders(args):
 
 	return dataloader_training, dataloader_validation, dataloader_testing
 
-def train(args, model, optimizer, scheduler=None):
-	dataloader_training, dataloader_validation, dataloader_testing = get_dataloaders(args)
+def train(args):
+	hard_representations_training = image.load(args, label='training')
+	hard_representations_testing = image.load(args, label='testing')
+	dataset_training = TensorDataset(hard_representations_training[0], hard_representations_training[1])
+	dataset_testing = TensorDataset(hard_representations_testing[0][0:1024], hard_representations_testing[1][0:1024])
 
-	# best_tracking
-	best_validation_loss = float('inf')
-	best_validation_loss_epoch = 0
+	dataset_testing = make_unfolded_dataset(args, dataset_testing)
 
-	records.update_job_status(args, 'training')
+	predictors = train_node(args, 0, dataset_testing, dataset_testing)
+	return {}
+		
 
-	total_steps = len(dataloader_training) * args.epochs
+def train_node(args, node_id: int, dataset_training: TensorDataset, dataset_testing: TensorDataset):
+	# create a new instance of the predictor model
+	predictor = models.get_model(args, None)
+	predictor = predictor.to(device.device)
+
+	ret = { node_id: predictor }
+
+	# train the predictor
+	predictor_training_result = predictor_train(args, f"{node_id}", predictor, dataset_training, dataset_testing)
+	wandb.log({
+		f"{node_id}/training_accuracy": predictor_training_result['training_accuracy'],
+		f"{node_id}/validation_accuracy": predictor_training_result['validation_accuracy'],
+	})
+
+	if node_id > 2 ** (args.max_depth - 1):
+		return ret
+
+	# split dataset_training, dataset_testing into two new datasets according to the prediction of the predictor for each sample
+	predictor.eval()
+	dataset_training_0, dataset_training_1 = split_dataset_by_predictor(args, predictor, dataset_training)
+	dataset_testing_0, dataset_testing_1 = split_dataset_by_predictor(args, predictor, dataset_testing)
+	# del dataset_training, dataset_testing
+
+	# if the dataset_training_0 or dataset_training_1 is empty, return the predictor
+	if len(dataset_training_0) == 0 or len(dataset_training_1) == 0:
+		return ret
+
+	# train the two new nodes
+	left_node_id = node_id * 2 + 1
+	right_node_id = node_id * 2 + 2
+	ret.update(train_node(args, left_node_id, dataset_training_0, dataset_testing_0))
+	ret.update(train_node(args, right_node_id, dataset_training_1, dataset_testing_1))
+
+	return ret
+
+
+def predictor_train(args, name, model, dataset_training, dataset_testing):
+	# create dataloaders for training
+	dataloader_training = torch.utils.data.DataLoader(dataset_training, batch_size=args.batch_size, shuffle=True)
+	dataloader_testing = torch.utils.data.DataLoader(dataset_testing, batch_size=args.batch_size, shuffle=False)
+
+	# create a new instance of the optimizer and scheduler
+	optimizer = optimizers.get_optimizer(args, model)
+	scheduler = optimizers.get_scheduler(args, optimizer)
+
+	total_steps = 40_000
 	hardening_steps = 0
 	if args.fixation_schedule is not None:
 		if args.fixation_schedule == 'linear_100':
@@ -60,91 +99,45 @@ def train(args, model, optimizer, scheduler=None):
 		elif args.fixation_schedule == 'cubic_100':
 			hardening_steps = total_steps*1.01
 		elif args.fixation_schedule == 'linear_60':
-			hardening_steps = int(total_steps * 0.60)
+			hardening_steps = int(total_steps * 0.605)
 		else:
 			raise ValueError('Unknown fixation schedule: %s' % args.fixation_schedule)
 
 	# train the model
-	for epoch in range(args.epochs):
+	epoch = 0
+	while True:
 		elapsed_steps = epoch * len(dataloader_training)
+		if elapsed_steps > total_steps:
+			break
 
 		# training
-		training_result = loop(args, model, 'training', dataloader_training, optimizer, elapsed_steps, hardening_steps)
+		training_result = predictor_loop(args, model, 'training', dataloader_training, optimizer, elapsed_steps, hardening_steps)
 	
-		# soft validation
-		# soft_validation_result = loop(args, model, 'soft_validation', dataloader_testing)
-
-		# hard validation
-		hard_validation_result = loop(args, model, 'hard_validation', dataloader_testing)
 		wandb.log({
-			'epoch': epoch,
-			'training_loss': training_result['loss'],
-			'training_accuracy': training_result['accuracy'],
-			#'soft_validation_loss': soft_validation_result['loss'],
-			#'soft_validation_accuracy': soft_validation_result['accuracy'],
-			'hard_validation_loss': hard_validation_result['loss'],
-			'hard_validation_accuracy': hard_validation_result['accuracy']
+			name+'/epoch': epoch,
+			name+'/training_loss': training_result['loss'],
+			name+'/training_accuracy': training_result['accuracy']
 		})
 
-		# early stopping and checkpointing
-		if best_validation_loss == float('inf') or hard_validation_result['loss'] < best_validation_loss - (best_validation_loss * args.min_delta):
-			best_validation_loss = hard_validation_result['loss']
-			best_validation_loss_epoch = epoch
-			best_model_name = save(args, model, optimizer, 'best')
-			records.insert_model(
-				args, best_model_name, epoch+1,
-				training_result['loss'], training_result['accuracy'], hard_validation_result['loss'], hard_validation_result['accuracy']
-			)
-		elif epoch - best_validation_loss_epoch >= args.patience:
-			break
+		epoch += 1
 
 		if scheduler is not None:
 			scheduler.step()
 
-	# save the last checkpoint
-	last_model_name = save(args, model, optimizer, 'last')
-	records.insert_model(
-		args, last_model_name, epoch+1,
-		training_result['loss'], training_result['accuracy'], hard_validation_result['loss'], hard_validation_result['accuracy']
-	)
+	# run the final validation
+	validation_result = predictor_loop(args, model, 'hard_validation', dataloader_testing)
 
 	result = {
 		'epochs': epoch,
 		'training_loss': training_result['loss'],
 		'training_accuracy': training_result['accuracy'],
-		'validation_loss': hard_validation_result['loss'],
-		'validation_accuracy': hard_validation_result['accuracy'],
-		'best_validation_loss': best_validation_loss,
-		'best_validation_loss_epoch': best_validation_loss_epoch
+		'validation_loss': validation_result['loss'],
+		'validation_accuracy': validation_result['accuracy'],
 	}
-
-	records.update_job_status(args, 'trained')
-
-	if args.evaluate_after_training:
-		dataloader_evaluation = choose_evaluation_dataloader(args, dataloader_training, dataloader_validation, dataloader_testing)
-		evaluation_result = evaluate(args, last_model_name, model, dataloader_evaluation)
-		result = {**result, **evaluation_result}
 
 	return result
 
-def evaluate(args, model_name, model, dataloader=None):
-	if dataloader is None:
-		training, validation, testing = get_dataloaders(args)
-		dataloader = choose_evaluation_dataloader(args, training, validation, testing)
-
-	# run the evaluation loop
-	records.update_job_status(args, 'evaluating')
-	evaluation_result = loop(args, model, 'evaluation', dataloader)
-	records.update_job_status(args, 'evaluated')
-	records.insert_evaluation(args, model_name, evaluation_result['loss'], evaluation_result['accuracy'])
-
-	# return an informative result dictionary
-	return {
-		'evaluation_loss': evaluation_result['loss'],
-		'evaluation_accuracy': evaluation_result['accuracy']
-	}
-
-def loop(args, model, mode, dataloader, optimizer=None, epoch_elapsed_steps=0, hardening_steps=0):
+def predictor_loop(args, model, mode, dataloader, optimizer=None, epoch_elapsed_steps=0, hardening_steps=0):
 	if mode == 'training' or mode == 'soft_validation':
 		model.train()
 	elif mode == 'validation' or mode == 'hard_validation' or mode == 'evaluation':
@@ -155,6 +148,11 @@ def loop(args, model, mode, dataloader, optimizer=None, epoch_elapsed_steps=0, h
 	accumulator_count = 0
 	for batch_idx, (data, target) in enumerate(dataloader):
 		elapsed_steps = epoch_elapsed_steps + batch_idx
+		if mode == 'training' and elapsed_steps > hardening_steps and hardening_steps > 0:
+			break
+		accumulator_count += 1
+		break
+
 		if optimizer is not None:
 			optimizer.zero_grad()
 
@@ -171,9 +169,9 @@ def loop(args, model, mode, dataloader, optimizer=None, epoch_elapsed_steps=0, h
 
 		data, target = data.to(device.device), target.to(device.device)
 
-		data = torch.nn.Unfold(kernel_size=(10,10), stride=(2,2), padding=4)(data)
-		data = data.transpose(1, 2).round().flatten(0, 1)
-		target = target.round().flatten(-2).transpose(1, 2).flatten(0, 1)[:, 0]
+		#data = torch.nn.Unfold(kernel_size=(10,10), stride=(2,2), padding=4)(data)
+		#data = data.transpose(1, 2).round().flatten(0, 1)
+		#target = target.round().flatten(-2).transpose(1, 2).flatten(0, 1)[:, 0]
 
 		output = model(data)
 		loss, accuracy = compute_loss_and_accuracy(output, target)
@@ -187,7 +185,7 @@ def loop(args, model, mode, dataloader, optimizer=None, epoch_elapsed_steps=0, h
 
 		if optimizer != None:
 			mean_loss.backward()
-			torch.nn.utils.clip_grad_norm_(model.parameters(), args.clip)
+			# torch.nn.utils.clip_grad_norm_(model.parameters(), args.clip)
 			optimizer.step()
 
 		if mode == 'training':
@@ -204,6 +202,51 @@ def loop(args, model, mode, dataloader, optimizer=None, epoch_elapsed_steps=0, h
 		'loss': total_mean_loss,
 		'accuracy': total_mean_accuracy
 	}
+
+def make_unfolded_dataset(args, dataset):
+	dataloader = torch.utils.data.DataLoader(dataset, batch_size=args.batch_size, shuffle=False)
+
+	data_acc = []
+	targets_acc = []
+	for batch_idx, (data, target) in enumerate(dataloader):
+		data, target = data.to(device.device), target.to(device.device)
+
+		data = torch.nn.Unfold(kernel_size=(10,10), stride=(2,2), padding=4)(data)
+		data = data.transpose(1, 2).round().flatten(0, 1)
+		target = target.round().flatten(-2).transpose(1, 2).flatten(0, 1)[:, 0]
+
+		data_acc.append(data.detach().cpu())
+		targets_acc.append(target.detach().cpu())
+	
+	all_data = torch.cat(data_acc)
+	all_targets = torch.cat(targets_acc)
+
+	return TensorDataset(all_data, all_targets)
+
+
+def split_dataset_by_predictor(args, model, dataset):
+	model.eval()
+	dataloader = torch.utils.data.DataLoader(dataset, batch_size=args.batch_size, shuffle=False)
+
+	lhs_indices = []
+	rhs_indices = []
+	
+	for batch_idx, (data, target) in enumerate(dataloader):
+		data, target = data.to(device.device), target.to(device.device)
+
+		output = model(data)
+		predictions = (output > 0)
+		lhs_indices += [ (batch_idx*args.batch_size + predictions.nonzero(as_tuple=True)[0]).detach().cpu() ]
+		rhs_indices += [ (batch_idx*args.batch_size + (~predictions).nonzero(as_tuple=True)[0]).detach().cpu() ]
+
+	lhs_indices = torch.cat(lhs_indices)
+	rhs_indices = torch.cat(rhs_indices)
+
+	dataset_lhs = torch.utils.data.Subset(dataset, lhs_indices)
+	dataset_rhs = torch.utils.data.Subset(dataset, rhs_indices)
+
+	return dataset_lhs, dataset_rhs
+
 
 def save(args, model, optimizer, label):
 	model_name = models.make_model_name(args, label)

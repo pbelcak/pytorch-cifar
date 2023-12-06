@@ -98,6 +98,10 @@ def get_args():
 		default=1,
 		help='The fixation flare to use (default: 1)'
 	)
+	parser.add_argument('--max_depth',
+		type=int,
+		default=2
+	)
 	parser.add_argument('--learning_rate',
 		type=float,
 		default=0.001,

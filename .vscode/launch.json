@@ -111,6 +111,7 @@
 				"--image=756609-vgg19_resilu_block-cifar10-vgg19_resilu_block",
 				
 				"--action=pred",
+				"--max_depth=2",
 				"--dataset=cifar10",
 				"--architecture=densesumunit",
 
