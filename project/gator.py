@@ -80,12 +80,13 @@ class Gator(nn.Module):
         for oi in range(self.output_width):
             entropies = torch.ones(input_width, input_width, dtype=torch.float) * 1000.0
             best_function = torch.zeros(input_width, input_width, 4, dtype=torch.bool)
-
-            random_indices = torch.randperm(input_width)
-            K = 16
             
+            K = 32
+
             for li in range(min(K, input_width)):
                 for si in range(li+1, min(li+K, input_width)):
+                    random_indices = torch.randperm(input_width)
+
                     ai = random_indices[li]
                     bi = random_indices[si]
                     trios = torch.cat([
@@ -105,6 +106,8 @@ class Gator(nn.Module):
                     # turn counts into probabilities
                     duo_sum = sum(duo_counts)
                     duo_probs = [count / duo_sum for count in duo_counts]
+
+                    # TODO: THIS IS NOT REALLY WORKING AS EXPECTED. WHAT I SHOULD REALLY DO IS TRY ALL POSSIBLE PROJECTIONS AND CHOOSE THE BEST ONE
 
                     # compute the conditional entropy of trio given duo
                     entropy = 0.0

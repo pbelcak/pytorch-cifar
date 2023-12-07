@@ -41,7 +41,7 @@ def train(args):
 
 	# create dataloaders for training
 	#dataloader_training = torch.utils.data.DataLoader(dataset_training, batch_size=args.batch_size, shuffle=True)
-	dataloader_testing = torch.utils.data.DataLoader(dataset_testing, batch_size=args.batch_size, shuffle=False)
+	dataloader_testing = torch.utils.data.DataLoader(dataset_testing, batch_size=args.batch_size, shuffle=True)
 
 	predictor = Gator(64 * 3 * 3, 128)
 	for i in range(10):
