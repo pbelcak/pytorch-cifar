@@ -119,6 +119,33 @@
 				"--evaluate_after_training"
 			],
 			"justMyCode": true
+		},
+		{
+			"name": "LogPred",
+			"type": "python",
+			"request": "launch",
+			"program": "main.py",
+			"console": "integratedTerminal",
+			"args": [
+				"--job_suite=logpred",
+				"--seed=42",
+				"--data_directory=../cache/",
+				"--checkpointing_directory=../cache/checkpoints/",
+				"--logging_directory=../cache/logs/",
+				"--results_directory=../cache/results/",
+				"--image_directory=../cache/images/",
+
+				"--image=756609-vgg19_resilu_block-cifar10-vgg19_resilu_block",
+				
+				"--action=logpred",
+				"--max_depth=2",
+				"--dataset=cifar10",
+				"--architecture=densesumunit",
+
+				"--batch_size=256",
+				"--evaluate_after_training"
+			],
+			"justMyCode": true
 		}
     ]
 }

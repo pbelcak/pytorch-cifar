@@ -74,6 +74,9 @@ def main():
 	elif args.action == 'pred':
 		import pred
 		result = pred.train(args)
+	elif args.action == 'logpred':
+		import logpred
+		result = logpred.train(args)
 	else:
 		raise ValueError('Unknown action: %s' % args.action)
 
