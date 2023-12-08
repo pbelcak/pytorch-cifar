@@ -81,7 +81,7 @@ class Gator(nn.Module):
             entropies = torch.ones(input_width, input_width, dtype=torch.float) * 1000.0
             best_function = torch.zeros(input_width, input_width, 4, dtype=torch.bool)
             
-            K = 32
+            K = 64
 
             for li in range(min(K, input_width)):
                 for si in range(li+1, min(li+K, input_width)):
@@ -108,6 +108,7 @@ class Gator(nn.Module):
                     duo_probs = [count / duo_sum for count in duo_counts]
 
                     # TODO: THIS IS NOT REALLY WORKING AS EXPECTED. WHAT I SHOULD REALLY DO IS TRY ALL POSSIBLE PROJECTIONS AND CHOOSE THE BEST ONE
+
 
                     # compute the conditional entropy of trio given duo
                     entropy = 0.0

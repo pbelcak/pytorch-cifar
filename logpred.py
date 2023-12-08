@@ -12,6 +12,8 @@ import optimizers
 from project.gator import *
 
 from torch.utils.data import TensorDataset
+
+from project.forester import *
 	
 def get_dataloaders(args):
 	# get the data
@@ -31,6 +33,7 @@ def get_dataloaders(args):
 
 	return dataloader_testing, dataloader_testing, dataloader_testing
 
+@torch.no_grad()
 def train(args):
 	#hard_representations_training = image.load(args, label='training')
 	hard_representations_testing = image.load(args, label='testing')
@@ -43,16 +46,21 @@ def train(args):
 	#dataloader_training = torch.utils.data.DataLoader(dataset_training, batch_size=args.batch_size, shuffle=True)
 	dataloader_testing = torch.utils.data.DataLoader(dataset_testing, batch_size=args.batch_size, shuffle=True)
 
-	predictor = Gator(64 * 3 * 3, 128)
-	for i in range(10):
+	# predictor = Gator(64 * 3 * 3, 128)
+	predictor = Forester(64 * 3 * 3, 128, 12)
+	for i in range(12):
+		# training batch
 		data, target = next(iter(dataloader_testing))
 		data, target = data.to(device.device), target.to(device.device)
-		predictor.optimization_step(data, target)
+		predictor.make_tree_level(data, target)
 
+		# testing batch
+		data, target = next(iter(dataloader_testing))
+		data, target = data.to(device.device), target.to(device.device)
 		predictor.eval()
 		output = predictor(data)
 		accuracy = (output == target.bool()).float().mean()
-		print(accuracy)
+		print(accuracy.item())
 
 
 def make_unfolded_dataset(args, dataset):

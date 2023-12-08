@@ -142,7 +142,7 @@
 				"--dataset=cifar10",
 				"--architecture=densesumunit",
 
-				"--batch_size=1024",
+				"--batch_size=2048",
 				"--evaluate_after_training"
 			],
 			"justMyCode": true
