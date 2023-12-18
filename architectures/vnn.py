@@ -57,7 +57,7 @@ class VNN(nn.Module, IFixable):
 
 	@torch.no_grad()
 	def set_hardness(self, hardness: float):
-		self.hardness.data = torch.tensor(hardness, device=self.hardness.device)
+		self.hardness.data.fill_(hardness)
 
 	def get_hardness(self) -> float:
 		return self.hardness.data.item()
