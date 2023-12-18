@@ -18,7 +18,6 @@ class VNN(nn.Module, IFixable):
 		self.linear_in = nn.Linear(input_width, parallel_size * self.n_nodes, bias=True)
 		self.linear_out = nn.Linear(parallel_size * self.n_nodes, output_width, bias=False)
 		self.hardness = nn.Parameter(torch.zeros((1,)), requires_grad=False)
-		self.last_hardness = nn.Parameter(torch.zeros((1,)), requires_grad=False)
 
 		self.activation = activation()
 
@@ -51,14 +50,14 @@ class VNN(nn.Module, IFixable):
 		decision_map_flat = decision_map.flatten(1, 2) # (batch_size, parallel_size * n_nodes)
 		new_logits = self.linear_out(
 			((1.0 - self.hardness) * activations + self.hardness * logit_decisions.float()) * decision_map_flat
-		) # (batch_size, parallel_size * n_nodes)
+		) # (batch_size, output_width)
 
-		ret = new_logits.reshape_as(oldx)
+		ret = new_logits
 		return ret
 
 	@torch.no_grad()
 	def set_hardness(self, hardness: float):
 		self.hardness.data = torch.tensor(hardness, device=self.hardness.device)
 
-    def get_hardness(self) -> float:
+	def get_hardness(self) -> float:
 		return self.hardness.data.item()

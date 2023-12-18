@@ -48,6 +48,7 @@ def train(args, model, optimizer, scheduler=None):
 	# train the model
 	for epoch in range(args.epochs):
 		elapsed_steps = epoch * len(dataloader_training)
+		print('Epoch %d/%d' % (epoch+1, args.epochs))
 
 		#if epoch > 0.60*args.epochs:
 			#for param_group in optimizer.param_groups:
@@ -76,11 +77,11 @@ def train(args, model, optimizer, scheduler=None):
 		if best_validation_loss == float('inf') or hard_validation_result['loss'] < best_validation_loss - (best_validation_loss * args.min_delta):
 			best_validation_loss = hard_validation_result['loss']
 			best_validation_loss_epoch = epoch
-			best_model_name = save(args, model, optimizer, 'best')
-			records.insert_model(
-				args, best_model_name, epoch+1,
-				training_result['loss'], training_result['accuracy'], hard_validation_result['loss'], hard_validation_result['accuracy']
-			)
+			#best_model_name = save(args, model, optimizer, 'best')
+			#records.insert_model(
+			#	args, best_model_name, epoch+1,
+			#	training_result['loss'], training_result['accuracy'], hard_validation_result['loss'], hard_validation_result['accuracy']
+			#)
 		elif epoch - best_validation_loss_epoch >= args.patience:
 			break
 
@@ -167,7 +168,6 @@ def loop(args, model, mode, dataloader, optimizer=None, epoch_elapsed_steps=0, h
 
 		mean_loss = loss.mean()
 		mean_accuracy = accuracy.mean()
-
 
 		if optimizer != None:
 			mean_loss.backward()

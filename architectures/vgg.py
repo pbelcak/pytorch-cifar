@@ -3,6 +3,7 @@ import torch
 import torch.nn as nn
 
 from .fixer import *
+from .vnn import *
 
 cfg = {
 	'vgg11': [64, 'M', 128, 'M', 256, 256, 'M', 512, 512, 'M', 512, 512, 'M'],
@@ -13,6 +14,7 @@ cfg = {
 	'vgg19_q1_full': [64, 64, 'M', 128, 128, 'M', 256, 256, 256, 256, 'M', 512, 512, 512, 512, 'M', 512, 512, 512, 512, 'M'],
 	'vgg19_resilu_full': [64, 64, 'M', 128, 128, 'M', 256, 256, 256, 256, 'M', 512, 512, 512, 512, 'M', 512, 512, 512, 512, 'M'],
 	'vgg19_resilu_block': [64, 64, 'M', 128, 128, 'M', 256, 256, 256, 256, 'M', 512, 512, 512, 512, 'M', 512, 512, 512, 512, 'M'],
+	'vgg19_vnn': [64, 64, 'VNN', 128, 128, 'M', 256, 256, 256, 256, 'M', 512, 512, 512, 512, 'M', 512, 512, 512, 512, 'M'],
 }
 
 
@@ -64,6 +66,14 @@ class VGG(nn.Module, IFixable):
 			if x == 'M':
 				layers += [nn.AvgPool2d(kernel_size=2, stride=2)]
 				block += 1
+			elif x == 'VNN':
+				block += 1
+				layers += [
+					nn.Flatten(),
+					VNN(32 * 32 * 64, 16 * 16 * 64, 4, parallel_size=4),
+					nn.Unflatten(1, (64, 16, 16)),
+					nn.BatchNorm2d(min(64 * 2 ** (block-1), 512), track_running_stats=False),
+				]
 			elif x == 'Q1':
 				layers += [
 					LearnableQuantization(1),
@@ -89,7 +99,7 @@ class VGG(nn.Module, IFixable):
 
 
 def test():
-	net = VGG('VGG11')
+	net = VGG('vgg19_vnn')
 	x = torch.randn(2,3,32,32)
 	y = net(x)
 	print(y.size())

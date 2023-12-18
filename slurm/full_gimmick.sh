@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --mem=20GB
+#SBATCH --mem=120GB
 #SBATCH --output=/home/pbelcak/pytorch-cifar/log/%j.out
 #SBATCH --error=/home/pbelcak/pytorch-cifar/log/%j.err
 #SBATCH --mail-type=NONE                            # mail configuration: NONE, BEGIN, END, FAIL, REQUEUE, ALL

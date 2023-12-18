@@ -36,6 +36,37 @@
 			"justMyCode": true
 		},
 		{
+			"name": "VNN",
+			"type": "python",
+			"request": "launch",
+			"program": "main.py",
+			"console": "integratedTerminal",
+			"args": [
+				"--job_suite=proto",
+				"--seed=42",
+				"--data_directory=../cache/",
+				"--checkpointing_directory=../cache/checkpoints/",
+				"--logging_directory=../cache/logs/",
+				"--results_directory=../cache/results/",
+				
+				"--action=train",
+				"--dataset=cifar10",
+				"--architecture=vgg19_vnn",
+
+				"--optimizer=sgd",
+                "--scheduler=cosine",
+                "--fixation_schedule=linear_100",
+                "--fixation_flare=1",
+				"--learning_rate=0.1",
+				"--epochs=200",
+				"--patience=200",
+				"--min_delta=0.01",
+				"--batch_size=128",
+				"--evaluate_after_training",
+			],
+			"justMyCode": true
+		},
+		{
 			"name": "Popcnt",
 			"type": "python",
 			"request": "launch",
