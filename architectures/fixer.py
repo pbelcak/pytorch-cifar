@@ -135,11 +135,14 @@ class ReSiLU(torch.nn.Module, IFixable):
 		self.hardness.data.fill_(hardness)
 
 	def forward(self, x):
-		activated = torch.clamp_max(torch.relu(x), 1.0)
+		activated = torch.clamp_max(torch.relu(x), 100 * (1.01-self.hardness.item()))
 
-		hardness = self.hardness.item() if self.training else 1.0
+		hardness = self.hardness.item()
 
-		interpolated = (1 - hardness) * activated + hardness * torch.sigmoid(x / (1.025 - hardness))
+		if self.training:
+			interpolated = (1 - hardness) * activated + hardness * torch.sigmoid(x / (1.025 - hardness))
+		else:
+			interpolated = (x > 0).float()
 
 		return interpolated
 

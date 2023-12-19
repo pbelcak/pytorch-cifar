@@ -14,7 +14,7 @@ cfg = {
 	'vgg19_q1_full': [64, 64, 'M', 128, 128, 'M', 256, 256, 256, 256, 'M', 512, 512, 512, 512, 'M', 512, 512, 512, 512, 'M'],
 	'vgg19_resilu_full': [64, 64, 'M', 128, 128, 'M', 256, 256, 256, 256, 'M', 512, 512, 512, 512, 'M', 512, 512, 512, 512, 'M'],
 	'vgg19_resilu_block': [64, 64, 'M', 128, 128, 'M', 256, 256, 256, 256, 'M', 512, 512, 512, 512, 'M', 512, 512, 512, 512, 'M'],
-	'vgg19_vnn': [64, 64, 'VNN', 128, 128, 'M', 256, 256, 256, 256, 'M', 512, 512, 512, 512, 'M', 512, 512, 512, 512, 'M'],
+	'vgg19_vnn': [64, 64, 'VNN', 128, 128, 'MP', 256, 256, 256, 256, 'MP', 512, 512, 512, 512, 'MP', 512, 512, 512, 512, 'MP'],
 }
 
 
@@ -48,10 +48,10 @@ class VGG(nn.Module, IFixable):
 	def forward(self, x):
 		for feature in self.features:
 			x = feature(x)
-			if isinstance(feature, ReSiLU):
-				self.record_hard_tensor(x)
-				if self.training:
-					x = torch.where(torch.rand_like(x) < 0.1, (1-x).detach(), x)
+			#if isinstance(feature, ReSiLU):
+				# self.record_hard_tensor(x)
+			#	if self.training:
+			#		x = torch.where(torch.rand_like(x) < 0.1, (1-x).detach(), x)
 			
 		out = x
 		out = out.view(out.size(0), -1)
@@ -63,14 +63,15 @@ class VGG(nn.Module, IFixable):
 		in_channels = 3
 		block = 0
 		for x, nextx in zip(cfg, cfg[1:]+[None]):
-			if x == 'M':
+			if x == 'M' or x == 'MP':
 				layers += [nn.AvgPool2d(kernel_size=2, stride=2)]
 				block += 1
 			elif x == 'VNN':
 				block += 1
 				layers += [
+					nn.AvgPool2d(kernel_size=2, stride=2),
 					nn.Flatten(),
-					VNN(32 * 32 * 64, 16 * 16 * 64, 4, parallel_size=4),
+					VNN(16 * 16 * 64, 16 * 16 * 64, 4, parallel_size=4),
 					nn.Unflatten(1, (64, 16, 16)),
 					nn.BatchNorm2d(min(64 * 2 ** (block-1), 512), track_running_stats=False),
 				]

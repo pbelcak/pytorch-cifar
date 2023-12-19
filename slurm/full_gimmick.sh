@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --mem=120GB
+#SBATCH --mem=20GB
 #SBATCH --output=/home/pbelcak/pytorch-cifar/log/%j.out
 #SBATCH --error=/home/pbelcak/pytorch-cifar/log/%j.err
 #SBATCH --mail-type=NONE                            # mail configuration: NONE, BEGIN, END, FAIL, REQUEUE, ALL
@@ -50,8 +50,8 @@ PYTHONPATH=${PROJECT_PATH} python ${PROJECT_PATH}/main.py \
 	--optimizer=sgd \
 	--scheduler=cosine \
 	--learning_rate=0.1 \
-	--epochs=300 \
-	--patience=300 \
+	--epochs=400 \
+	--patience=400 \
 	--min_delta=0.01 \
 	--batch_size=1024 \
 	--clip=1.0 \
