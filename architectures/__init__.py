@@ -19,3 +19,4 @@ from .dla import *
 from .ff import *
 from .popcnt import *
 from .densesumunit import *
+from .q1linear import *

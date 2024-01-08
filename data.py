@@ -61,11 +61,11 @@ def get_dataloaders_cifar10(args):
 	training_size = int(0.95 * len(dataset_training))
 	# split_training, split_validation = torch.utils.data.random_split(dataset_training, [training_size, len(dataset_training) - training_size])
 	
-	dataloader_training = torch.utils.data.DataLoader(dataset_training, batch_size=args.batch_size, shuffle=True)
+	dataloader_training = torch.utils.data.DataLoader(dataset_training, batch_size=args.batch_size, shuffle=True, num_workers=16)
 	# dataloader_validation = torch.utils.data.DataLoader(split_validation, batch_size=args.batch_size, shuffle=True)
 
 	dataset_testing = datasets.CIFAR10(args.data_directory, download=True, train=False, transform=transform_test)
-	dataloader_testing = torch.utils.data.DataLoader(dataset_testing, batch_size=args.batch_size, shuffle=False)
+	dataloader_testing = torch.utils.data.DataLoader(dataset_testing, batch_size=args.batch_size, shuffle=False, num_workers=16)
 
 	# classes = ('plane', 'car', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
 

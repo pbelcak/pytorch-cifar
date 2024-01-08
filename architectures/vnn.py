@@ -17,6 +17,9 @@ class VNN(nn.Module, IFixable):
 
 		self.linear_in = nn.Linear(input_width, parallel_size * self.n_nodes, bias=True)
 		self.linear_out = nn.Linear(parallel_size * self.n_nodes, output_width, bias=False)
+		in_hidden_features = (depth+1) * parallel_size
+		init_k = 1 / math.sqrt(in_hidden_features)
+		self.linear_out.weight.data.uniform_(-init_k, +init_k)
 		self.hardness = nn.Parameter(torch.zeros((1,)), requires_grad=False)
 
 		self.activation = ReSiLU()
@@ -57,8 +60,9 @@ class VNN(nn.Module, IFixable):
 
 	@torch.no_grad()
 	def set_hardness(self, hardness: float):
-		self.hardness.data.fill_(hardness)
-		self.activation.set_hardness(hardness)
+		#self.hardness.data.fill_(hardness)
+		#self.activation.set_hardness(hardness)
+		pass
 
 	def get_hardness(self) -> float:
 		return self.hardness.data.item()

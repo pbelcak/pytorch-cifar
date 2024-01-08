@@ -4,6 +4,7 @@ import data
 import models
 import optimizers
 import loops
+import aeloop
 import records
 import image
 
@@ -21,7 +22,7 @@ def main():
 	# initialize a wandb run
 	args = cli.get_args()
 	wandb.init(
-		project='pytorch-popcnt' if args.action == 'fit_image' else PROJECT_NAME,
+		project=PROJECT_NAME if not args.architecture.startswith('ae') else 'cifar10-ae',
 		name="{}-{}".format(args.job_id, args.job_suite),
 		tags=[args.action, args.dataset, args.architecture],
 		config=args,
@@ -60,7 +61,10 @@ def main():
 
 	# run the action requested
 	if args.action == 'train':
-		result = loops.train(args, model, optimizer, scheduler)
+		if args.architecture.startswith('ae'):
+			result = aeloop.train(args, model, optimizer, scheduler)
+		else:
+			result = loops.train(args, model, optimizer, scheduler)
 	elif args.action == 'evaluate':
 		result = loops.evaluate(args, args.checkpoint, model)
 	elif args.action == 'build_image':

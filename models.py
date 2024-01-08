@@ -13,6 +13,8 @@ def make_checkpoint_path(args, model_name: str, component: str = 'model'):
 def get_model(args, data_meta):
 	if args.architecture.startswith('vgg'):
 		return VGG(args.architecture)
+	elif args.architecture.startswith('ae'):
+		return VGG_AE(args.architecture)
 	elif args.architecture == 'resnet18':
 		return ResNet18()
 	elif args.architecture == 'preactresnet18':
@@ -93,5 +95,13 @@ def get_model(args, data_meta):
 		return project.Tree(64 * 5 * 5, 10)
 	elif args.architecture == 'densesumunit':
 		return DenseSumUnit(64 * 10 * 10)
+	elif args.architecture == 'q1ff':
+		return Q1FF(data_meta['input_width'], data_meta['output_width'])
+	elif args.architecture == 's1ff':
+		return S1FF(data_meta['input_width'], data_meta['output_width'])
+	elif args.architecture == 'classicff':
+		return ClassicFF(data_meta['input_width'], data_meta['output_width'])
+	elif args.architecture == 'resiq1ff':
+		return ResiQ1FF(data_meta['input_width'], data_meta['output_width'])
 	else:
 		raise ValueError('Unknown architecture: %s' % args.architecture)
